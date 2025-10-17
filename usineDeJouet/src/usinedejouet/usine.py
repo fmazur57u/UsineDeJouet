@@ -141,14 +141,52 @@ class Usine:
             "emballage": Station("emballage", 1),
         }
 
+        self.pile_defaut = PileDefauts()
+
     def simuler_flux(self) -> None:
         etapes = ["assemblage", "peinture", "contrôle qualité", "emballage"]
-        while any(station.file_attente for station in self.stations.values()):
+        while (
+            any(station.file_attente for station in self.stations.values())
+            or self.pile_defaut.pile
+        ):
             for i, etape in enumerate(etapes):
                 produit_traite = self.stations[etape].traiter_produit()
                 if produit_traite == None:
                     continue
                 elif etape == "emballage":
                     print("Tous les étapes sont terminé pour ce produit")
+                    produit_traite.statut = "fini"
+                elif etape == "contrôle qualité":
+                    tentatives = 0
+                    while random.random() < 0.2 or tentatives != 3:
+                        tentatives = self.pile_defaut.traiter_defaut(
+                            tentatives, self.stations
+                        )
                 else:
                     self.stations[etape[i + 1]].ajouter_produit(produit_traite)
+
+
+class PileDefauts:
+    def __init__(self):
+        self.pile = []
+
+    def ajouter_defaut(self, produit: Produit) -> None:
+        self.pile.append(produit)
+        logging.info(f"Le produit {produit} à été ajouter à la pile de défaut.")
+
+    def traiter_defaut(self, tentatives: int, stations: Dict[str, Station]) -> None:
+        if len(self.pile) != 0:
+            return None
+        else:
+            produit = self.pile.pop()
+            tentatives += 1
+            if tentatives > 3:
+                produit.statut = "rejeté"
+                logging.error(
+                    f"Le nombre de tentatives à été dépasser. Le produit {produit} à été rejeté."
+                )
+            else:
+                etapes = ["assemblage", "peinture"]
+                etape = random.choice(etapes)
+                stations[etape].ajouter_produit(produit)
+            return tentatives
